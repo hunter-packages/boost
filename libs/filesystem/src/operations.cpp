@@ -11,22 +11,9 @@
 //--------------------------------------------------------------------------------------// 
 
 //  define 64-bit offset macros BEFORE including boost/config.hpp (see ticket #5355) 
-#if !(defined(__HP_aCC) && defined(_ILP32) && !defined(_STATVFS_ACPP_PROBLEMS_FIXED))
-#define _FILE_OFFSET_BITS 64 // at worst, these defines may have no effect,
-#endif
-#if !defined(__PGI)
-#define __USE_FILE_OFFSET64 // but that is harmless on Windows and on POSIX
-      // 64-bit systems or on 32-bit systems which don't have files larger 
-      // than can be represented by a traditional POSIX/UNIX off_t type. 
-      // OTOH, defining them should kick in 64-bit off_t's (and thus 
-      // st_size)on 32-bit systems that provide the Large File
-      // Support (LFS)interface, such as Linux, Solaris, and IRIX.
-      // The defines are given before any headers are included to
-      // ensure that they are available to all included headers.
-      // That is required at least on Solaris, and possibly on other
-      // systems as well.
+#if defined(__ANDROID__) && defined(__ANDROID_API__) && __ANDROID_API__ < 24
 #else
-#define _FILE_OFFSET_BITS 64
+# define _FILE_OFFSET_BITS 64
 #endif
 
 // define BOOST_FILESYSTEM_SOURCE so that <boost/filesystem/config.hpp> knows
@@ -44,6 +31,7 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/scoped_array.hpp>
 #include <boost/detail/workaround.hpp>
+#include <limits>
 #include <vector> 
 #include <cstdlib>     // for malloc, free
 #include <cstring>
@@ -1615,6 +1603,12 @@ namespace detail
   BOOST_FILESYSTEM_DECL
   void resize_file(const path& p, uintmax_t size, system::error_code* ec)
   {
+#if defined(BOOST_POSIX_API)
+    if (BOOST_UNLIKELY(size > static_cast< uintmax_t >((std::numeric_limits< off_t >::max)()))) {
+      error(system::errc::file_too_large, p, ec, "boost::filesystem::resize_file");
+      return;
+    }
+#endif
     error(!BOOST_RESIZE_FILE(p.c_str(), size) ? BOOST_ERRNO : 0, p, ec,
       "boost::filesystem::resize_file");
   }
